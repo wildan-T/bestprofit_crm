@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'login_screen.dart';
+import 'client_list_screen.dart'; // Tambahkan import ini
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   void _logout(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginScreen()),
-    );
+    if (context.mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
+    }
   }
 
   @override
@@ -31,25 +34,36 @@ class HomeScreen extends StatelessWidget {
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
         children: [
-          _buildMenuCard(Icons.people, 'Data Klien', Colors.blue),
-          _buildMenuCard(Icons.calendar_month, 'Jadwal Meeting', Colors.orange),
-          _buildMenuCard(Icons.trending_up, 'Harga Emas Real-time', Colors.amber),
-          _buildMenuCard(Icons.pie_chart, 'Kinerja Harian', Colors.green),
-          _buildMenuCard(Icons.history, 'Riwayat Komunikasi', Colors.purple),
-          _buildMenuCard(Icons.folder, 'Dokumen (KYC)', Colors.red),
+          // Perbarui bagian ini untuk menambahkan fungsi onTap
+          _buildMenuCard(
+            context, 
+            Icons.people, 
+            'Data Klien', 
+            Colors.blue,
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ClientListScreen()),
+              );
+            }
+          ),
+          _buildMenuCard(context, Icons.calendar_month, 'Jadwal Meeting', Colors.orange, () {}),
+          _buildMenuCard(context, Icons.trending_up, 'Harga Emas', Colors.amber, () {}),
+          _buildMenuCard(context, Icons.pie_chart, 'Kinerja Harian', Colors.green, () {}),
+          _buildMenuCard(context, Icons.history, 'Riwayat Komunikasi', Colors.purple, () {}),
+          _buildMenuCard(context, Icons.folder, 'Dokumen (KYC)', Colors.red, () {}),
         ],
       ),
     );
   }
 
-  Widget _buildMenuCard(IconData icon, String title, Color color) {
+  // Tambahkan parameter onTap
+  Widget _buildMenuCard(BuildContext context, IconData icon, String title, Color color, VoidCallback onTap) {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: () {
-          // Navigasi ke halaman fitur masing-masing
-        },
+        onTap: onTap, // Gunakan parameter onTap di sini
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

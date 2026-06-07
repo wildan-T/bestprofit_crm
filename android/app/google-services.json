@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "531009317544",
+    "project_id": "bestprofit-crm",
+    "storage_bucket": "bestprofit-crm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:531009317544:android:25a6fe7dbf426efa20709d",
+        "android_client_info": {
+          "package_name": "com.example.bestprofit_crm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBNbAW5Eb4BoKAljxhaQ_RJon_dtN1v7Wk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

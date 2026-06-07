@@ -17,12 +17,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     setState(() => _isLoading = true);
+    
     try {
       await _auth.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
-      // Jika sukses, navigasi ke Dashboard Utama
+      
+      // Jika berhasil, pindah ke HomeScreen
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -30,11 +32,24 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Login Gagal')),
-      );
+      // Menangkap error khusus dari autentikasi (misal: password salah)
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Login Gagal: ${e.message}')),
+        );
+      }
+    } catch (e) {
+      // Menangkap error sistem lainnya (misal: belum setup google-services)
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Terjadi Kesalahan: $e')),
+        );
+      }
     } finally {
-      setState(() => _isLoading = false);
+      // Mematikan loading spinner apa pun hasilnya
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -48,7 +63,11 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Text(
-                'BPF Mobile CRM',
+                'Bestprofit Futures',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              ),
+              const Text(
+                'Mobile CRM',
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 40),
