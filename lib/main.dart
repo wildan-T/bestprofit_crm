@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'login_screen.dart';
+import 'splash_screen.dart';
 
 void main() async {
   // Wajib dipanggil sebelum inisialisasi Firebase
@@ -23,7 +23,7 @@ class MobileCRMApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         scaffoldBackgroundColor: Colors.grey[100],
       ),
-      home: const LoginScreen(), // Mengarah ke halaman login pertama kali
+      home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
