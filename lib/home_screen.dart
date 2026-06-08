@@ -18,10 +18,7 @@ class _HomeScreenState extends State<HomeScreen>
   final List<_MenuData> _menus = [
     _MenuData(Icons.people_alt_outlined, 'Data Klien', const Color(0xFF3B82F6), const Color(0xFF1D4ED8), ''),
     _MenuData(Icons.calendar_month_outlined, 'Jadwal Meeting', const Color(0xFFF59E0B), const Color(0xFFB45309), ''),
-    _MenuData(Icons.trending_up, 'Harga Emas', const Color(0xFFD4AF37), const Color(0xFF92400E), ''),
-    _MenuData(Icons.pie_chart_outline, 'Kinerja Harian', const Color(0xFF10B981), const Color(0xFF065F46), ''),
-    _MenuData(Icons.history, 'Riwayat Komunikasi', const Color(0xFF8B5CF6), const Color(0xFF5B21B6), ''),
-    _MenuData(Icons.folder_open_outlined, 'Dokumen KYC', const Color(0xFFEF4444), const Color(0xFF991B1B), ''),
+    _MenuData(Icons.person_outline, 'Profil', const Color(0xFFD4AF37), const Color(0xFF92400E), ''),
   ];
 
   @override

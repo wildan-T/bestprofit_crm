@@ -23,7 +23,7 @@ class MobileCRMApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         scaffoldBackgroundColor: Colors.grey[100],
       ),
-      home: const SplashScreen(),
+      home: const SplashScreen(), // Mengarah ke halaman splash pertama kali
       debugShowCheckedModeBanner: false,
     );
   }
