@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'splash_screen.dart';
+import 'app_colors.dart';
 
 void main() async {
-  // Wajib dipanggil sebelum inisialisasi Firebase
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Inisialisasi koneksi ke Firebase backend
   await Firebase.initializeApp();
-  
   runApp(const MobileCRMApp());
 }
 
@@ -20,10 +17,15 @@ class MobileCRMApp extends StatelessWidget {
     return MaterialApp(
       title: 'BPF Mobile CRM',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
-        scaffoldBackgroundColor: Colors.grey[100],
+        primaryColor: AppColors.primary,
+        scaffoldBackgroundColor: AppColors.backgroundLight,
+        colorScheme: const ColorScheme.light(
+          primary: AppColors.primary,
+          secondary: AppColors.secondary,
+          surface: AppColors.surface,
+        ),
       ),
-      home: const SplashScreen(), // Mengarah ke halaman splash pertama kali
+      home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
     );
   }

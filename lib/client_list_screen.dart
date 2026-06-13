@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'client_detail_screen.dart';
 import 'client_model.dart';
 import 'add_client_screen.dart';
+import 'app_colors.dart'; // Import AppColors
 
 class ClientListScreen extends StatefulWidget {
   const ClientListScreen({super.key});
@@ -24,115 +26,62 @@ class _ClientListScreenState extends State<ClientListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0E1A),
+      backgroundColor: AppColors.backgroundLight,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F1929),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 18),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Data Klien',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: const Color(0xFF1E2A40)),
-        ),
-      ),
+  backgroundColor: AppColors.primary,
+  elevation: 0,
+  automaticallyImplyLeading: false, // Mencegah tombol back otomatis muncul
+  title: const Text('Data Klien', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+),
       body: Column(
         children: [
-          // Search & filter area
           Container(
-            color: const Color(0xFF0F1929),
+            color: AppColors.surface,
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: Column(
               children: [
-                // Search bar
                 Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF111827),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFF1E2A40)),
-                  ),
+                  decoration: BoxDecoration(color: AppColors.backgroundLight, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.neutral.withOpacity(0.2))),
                   child: TextField(
                     controller: _searchController,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    style: const TextStyle(color: AppColors.primary, fontSize: 14),
                     onChanged: (val) => setState(() => _searchQuery = val.toLowerCase()),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Cari nama atau nomor HP...',
-                      hintStyle: TextStyle(color: Color(0xFF3A4A6B), fontSize: 14),
-                      prefixIcon: Icon(Icons.search, color: Color(0xFF8A9BB5), size: 20),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 12),
+                      hintStyle: TextStyle(color: AppColors.neutral.withOpacity(0.8), fontSize: 14),
+                      prefixIcon: const Icon(Icons.search, color: AppColors.neutral, size: 20),
+                      border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                   ),
                 ),
                 const SizedBox(height: 12),
-                // Status filter chips
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    children: ['Semua', 'Hot', 'Warm', 'Cold', 'Join', 'Closed']
-                        .map((status) => _FilterChip(
-                              label: status,
-                              isSelected: _filterStatus == status,
-                              color: _getStatusColor(status),
-                              onTap: () => setState(() => _filterStatus = status),
-                            ))
-                        .toList(),
+                    children: ['Semua', 'Hot', 'Warm', 'Cold', 'Join', 'Closed'].map((status) => _FilterChip(
+                      label: status, isSelected: _filterStatus == status, color: _getStatusColor(status),
+                      onTap: () => setState(() => _filterStatus = status),
+                    )).toList(),
                   ),
                 ),
               ],
             ),
           ),
-          // List
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('clients')
-                  .orderBy('name')
-                  .snapshots(),
+              stream: FirebaseFirestore.instance.collection('clients').orderBy('name').snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return _buildEmptyState(
-                    Icons.error_outline,
-                    'Terjadi kesalahan',
-                    'Periksa koneksi Anda',
-                  );
-                }
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFD4AF37), strokeWidth: 2),
-                  );
-                }
+                if (snapshot.hasError) return _buildEmptyState(Icons.error_outline, 'Terjadi kesalahan', 'Periksa koneksi Anda');
+                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2));
 
                 final allDocs = snapshot.requireData.docs;
-                final clients = allDocs
-                    .map((d) => ClientModel.fromMap(d.data() as Map<String, dynamic>, d.id))
-                    .where((c) {
-                  final matchSearch = _searchQuery.isEmpty ||
-                      c.name.toLowerCase().contains(_searchQuery) ||
-                      c.phone.contains(_searchQuery);
-                  final matchFilter =
-                      _filterStatus == 'Semua' || c.prospectStatus == _filterStatus;
+                final clients = allDocs.map((d) => ClientModel.fromMap(d.data() as Map<String, dynamic>, d.id)).where((c) {
+                  final matchSearch = _searchQuery.isEmpty || c.name.toLowerCase().contains(_searchQuery) || c.phone.contains(_searchQuery);
+                  final matchFilter = _filterStatus == 'Semua' || c.prospectStatus == _filterStatus;
                   return matchSearch && matchFilter;
                 }).toList();
 
-                if (clients.isEmpty) {
-                  return _buildEmptyState(
-                    Icons.person_search,
-                    'Tidak ada klien',
-                    _searchQuery.isNotEmpty
-                        ? 'Coba kata kunci lain'
-                        : 'Tambah klien baru dengan tombol +',
-                  );
-                }
+                if (clients.isEmpty) return _buildEmptyState(Icons.person_search, 'Tidak ada klien', _searchQuery.isNotEmpty ? 'Coba kata kunci lain' : 'Tambah klien baru dengan tombol +');
 
                 return ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
@@ -141,7 +90,13 @@ class _ClientListScreenState extends State<ClientListScreen> {
                     return _ClientCard(
                       client: clients[index],
                       onTap: () {
-                        // Detail klien
+                        // Navigasi ke halaman detail dengan membawa data klien
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ClientDetailScreen(client: clients[index]),
+                          ),
+                        );
                       },
                     );
                   },
@@ -154,41 +109,22 @@ class _ClientListScreenState extends State<ClientListScreen> {
       floatingActionButton: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          gradient: const LinearGradient(
-            colors: [Color(0xFFD4AF37), Color(0xFFB8860B)],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFD4AF37).withOpacity(0.4),
-              blurRadius: 20,
-              offset: const Offset(0, 6),
-            ),
-          ],
+          gradient: const LinearGradient(colors: [AppColors.secondary, Color(0xFFB8860B)]),
+          boxShadow: [BoxShadow(color: AppColors.secondary.withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 6))],
         ),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const AddClientScreen()),
-            ),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddClientScreen())),
             child: const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.add, color: Color(0xFF0A0E1A), size: 20),
+                  Icon(Icons.add, color: Colors.white, size: 20),
                   SizedBox(width: 8),
-                  Text(
-                    'Tambah Klien',
-                    style: TextStyle(
-                      color: Color(0xFF0A0E1A),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
+                  Text('Tambah Klien', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: 0.5)),
                 ],
               ),
             ),
@@ -203,11 +139,11 @@ class _ClientListScreenState extends State<ClientListScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 52, color: const Color(0xFF1E2A40)),
+          Icon(icon, size: 52, color: AppColors.neutral.withOpacity(0.5)),
           const SizedBox(height: 14),
-          Text(title, style: const TextStyle(color: Color(0xFF8A9BB5), fontSize: 16, fontWeight: FontWeight.w600)),
+          Text(title, style: const TextStyle(color: AppColors.primary, fontSize: 16, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(color: Color(0xFF3A4A6B), fontSize: 13)),
+          Text(subtitle, style: const TextStyle(color: AppColors.neutral, fontSize: 13)),
         ],
       ),
     );
@@ -216,11 +152,11 @@ class _ClientListScreenState extends State<ClientListScreen> {
   Color _getStatusColor(String status) {
     switch (status) {
       case 'Hot': return const Color(0xFFEF4444);
-      case 'Warm': return const Color(0xFFF59E0B);
-      case 'Cold': return const Color(0xFF3B82F6);
-      case 'Join': return const Color(0xFF10B981);
-      case 'Closed': return const Color(0xFF6B7280);
-      default: return const Color(0xFFD4AF37);
+      case 'Warm': return AppColors.secondary;
+      case 'Cold': return AppColors.primary;
+      case 'Join': return AppColors.tertiary;
+      case 'Closed': return AppColors.neutral;
+      default: return AppColors.primary;
     }
   }
 }
@@ -231,12 +167,7 @@ class _FilterChip extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
 
-  const _FilterChip({
-    required this.label,
-    required this.isSelected,
-    required this.color,
-    required this.onTap,
-  });
+  const _FilterChip({required this.label, required this.isSelected, required this.color, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -248,20 +179,10 @@ class _FilterChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          color: isSelected ? color.withOpacity(0.2) : const Color(0xFF111827),
-          border: Border.all(
-            color: isSelected ? color : const Color(0xFF1E2A40),
-            width: 1.5,
-          ),
+          color: isSelected ? color.withOpacity(0.1) : AppColors.backgroundLight,
+          border: Border.all(color: isSelected ? color : AppColors.neutral.withOpacity(0.3), width: 1.5),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: isSelected ? color : const Color(0xFF8A9BB5),
-          ),
-        ),
+        child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isSelected ? color : AppColors.neutral)),
       ),
     );
   }
@@ -276,11 +197,11 @@ class _ClientCard extends StatelessWidget {
   Color _statusColor(String s) {
     switch (s) {
       case 'Hot': return const Color(0xFFEF4444);
-      case 'Warm': return const Color(0xFFF59E0B);
-      case 'Cold': return const Color(0xFF3B82F6);
-      case 'Join': return const Color(0xFF10B981);
-      case 'Closed': return const Color(0xFF6B7280);
-      default: return const Color(0xFF3B82F6);
+      case 'Warm': return AppColors.secondary;
+      case 'Cold': return AppColors.primary;
+      case 'Join': return AppColors.tertiary;
+      case 'Closed': return AppColors.neutral;
+      default: return AppColors.primary;
     }
   }
 
@@ -289,11 +210,7 @@ class _ClientCard extends StatelessWidget {
     final color = _statusColor(client.prospectStatus);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF111827),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF1E2A40)),
-      ),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.neutral.withOpacity(0.2))),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -303,77 +220,46 @@ class _ClientCard extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             child: Row(
               children: [
-                // Avatar
                 Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: color.withOpacity(0.15),
-                  ),
-                  child: Center(
-                    child: Text(
-                      client.name.isNotEmpty ? client.name[0].toUpperCase() : '?',
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: color.withOpacity(0.1)),
+                  child: Center(child: Text(client.name.isNotEmpty ? client.name[0].toUpperCase() : '?', style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.w800))),
                 ),
                 const SizedBox(width: 14),
-                // Info
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        client.name,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14.5,
-                        ),
-                      ),
+                      Text(client.name, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 14.5)),
                       const SizedBox(height: 3),
-                      Text(
-                        client.phone,
-                        style: const TextStyle(color: Color(0xFF8A9BB5), fontSize: 12.5),
-                      ),
+                      Text(client.phone, style: const TextStyle(color: AppColors.neutral, fontSize: 12.5, fontWeight: FontWeight.w500)),
                       if (client.profession.isNotEmpty) ...[
                         const SizedBox(height: 2),
-                        Text(
-                          client.profession,
-                          style: const TextStyle(color: Color(0xFF3A4A6B), fontSize: 12),
-                          overflow: TextOverflow.ellipsis,
+                        Text(client.profession, style: TextStyle(color: AppColors.neutral.withOpacity(0.8), fontSize: 12), overflow: TextOverflow.ellipsis),
+                      ],
+                      if (client.brokerName.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(Icons.assignment_ind_outlined, size: 12, color: AppColors.secondary),
+                            const SizedBox(width: 4),
+                            Text('Broker: ${client.brokerName}', style: const TextStyle(color: AppColors.secondary, fontSize: 11, fontWeight: FontWeight.w700)),
+                          ],
                         ),
                       ],
                     ],
                   ),
                 ),
-                // Status badge
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: color.withOpacity(0.15),
-                      ),
-                      child: Text(
-                        client.prospectStatus,
-                        style: TextStyle(
-                          color: color,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(8), color: color.withOpacity(0.1)),
+                      child: Text(client.prospectStatus, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
                     ),
                     const SizedBox(height: 6),
-                    const Icon(Icons.chevron_right, color: Color(0xFF3A4A6B), size: 18),
+                    const Icon(Icons.chevron_right, color: AppColors.neutral, size: 18),
                   ],
                 ),
               ],
