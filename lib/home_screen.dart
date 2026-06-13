@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'client_list_screen.dart';
+import 'meeting_list_screen.dart';
 import 'login_screen.dart';
 import 'app_colors.dart'; // Import AppColors
 
@@ -17,10 +18,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = [
-    const _DashboardTab(),
+  late final List<Widget> _pages = [
+    _DashboardTab(onSeeSchedule: () => setState(() => _currentIndex = 2)),
     const ClientListScreen(),
-    const _PlaceholderTab(title: 'Jadwal Meeting', icon: Icons.calendar_month_outlined),
+    const MeetingListScreen(),
     const _ProfileTab(),
   ];
 
@@ -64,7 +65,8 @@ class _HomeScreenState extends State<HomeScreen> {
 // WIDGET TAB: DASHBOARD (HOME)
 // ==========================================
 class _DashboardTab extends StatefulWidget {
-  const _DashboardTab();
+  final VoidCallback onSeeSchedule;
+  const _DashboardTab({required this.onSeeSchedule});
 
   @override
   State<_DashboardTab> createState() => _DashboardTabState();
@@ -187,6 +189,10 @@ class _DashboardTabState extends State<_DashboardTab> {
                         ),
                         const SizedBox(height: 24),
 
+                        // 1.5 KARTU JADWAL MEETING TERDEKAT
+                        _buildUpcomingMeetingCard(),
+                        const SizedBox(height: 24),
+
                         // 2. BAR CHART: TREN JOIN KLIEN
                         _buildBarChartSection(docs),
                         const SizedBox(height: 24),
@@ -202,6 +208,77 @@ class _DashboardTabState extends State<_DashboardTab> {
           ),
         ),
       ],
+    );
+  }
+
+  // Kartu ringkasan jadwal meeting terdekat
+  Widget _buildUpcomingMeetingCard() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('meetings').orderBy('dateTime').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+
+        final now = DateTime.now();
+        final upcoming = snapshot.data!.docs
+            .map((d) => d.data() as Map<String, dynamic>)
+            .where((m) => m['dateTime'] != null && (m['dateTime'] as Timestamp).toDate().isAfter(now))
+            .toList();
+
+        if (upcoming.isEmpty) return const SizedBox.shrink();
+
+        final next = upcoming.first;
+        final dateTime = (next['dateTime'] as Timestamp).toDate();
+        final diff = dateTime.difference(now);
+        String relative;
+        if (diff.inMinutes < 60) {
+          relative = 'Dalam ${diff.inMinutes} menit';
+        } else if (diff.inHours < 24) {
+          relative = 'Dalam ${diff.inHours} jam';
+        } else {
+          relative = 'Dalam ${diff.inDays} hari';
+        }
+
+        return InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: widget.onSeeSchedule,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(colors: [AppColors.primary, Color(0xFF001F50)]),
+              boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.2), blurRadius: 14, offset: const Offset(0, 6))],
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 46, height: 46,
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: AppColors.secondary.withOpacity(0.2)),
+                  child: const Icon(Icons.event_note_outlined, color: AppColors.secondary, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        next['title'] ?? 'Jadwal Meeting',
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${DateFormat('dd MMM, HH:mm', 'id_ID').format(dateTime)} • $relative',
+                        style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 11.5, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: Colors.white, size: 20),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -471,30 +548,6 @@ class _DashboardTabState extends State<_DashboardTab> {
           Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.neutral)),
           const Spacer(),
           Text(count.toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.primary)),
-        ],
-      ),
-    );
-  }
-}
-
-// ==========================================
-// WIDGET TAB: PLACEHOLDER & PROFILE
-// ==========================================
-class _PlaceholderTab extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  const _PlaceholderTab({required this.title, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 64, color: AppColors.neutral.withOpacity(0.3)),
-          const SizedBox(height: 16),
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.primary)),
-          const Text('Segera Hadir', style: TextStyle(color: AppColors.neutral)),
         ],
       ),
     );
