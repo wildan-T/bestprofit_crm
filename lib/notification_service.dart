@@ -123,7 +123,7 @@ class NotificationService {
   }
 
   Future<void> cancelReminder(int id) async {
-    await _plugin.cancel(id: id);
+    await _plugin.cancel(id :id);
   }
 
   Future<void> cancelAll() async {
