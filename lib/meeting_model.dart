@@ -39,7 +39,6 @@ extension MeetingStatusX on MeetingStatus {
 
 class MeetingModel {
   final String id;
-  final String title;
   final String clientName;
   final String location;
   final String notes;
@@ -66,7 +65,6 @@ class MeetingModel {
 
   MeetingModel({
     required this.id,
-    required this.title,
     required this.clientName,
     required this.location,
     required this.notes,
@@ -87,7 +85,6 @@ class MeetingModel {
 
   Map<String, dynamic> toMap() {
     return {
-      'title': title,
       'clientName': clientName,
       'location': location,
       'notes': notes,
@@ -107,7 +104,6 @@ class MeetingModel {
   factory MeetingModel.fromMap(Map<String, dynamic> map, String docId) {
     return MeetingModel(
       id: docId,
-      title: map['title'] ?? '',
       clientName: map['clientName'] ?? '',
       location: map['location'] ?? '',
       notes: map['notes'] ?? '',
@@ -134,7 +130,6 @@ class MeetingModel {
   }) {
     return MeetingModel(
       id: id,
-      title: title,
       clientName: clientName,
       location: location,
       notes: notes,

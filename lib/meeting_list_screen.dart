@@ -56,6 +56,7 @@ class _MeetingListScreenState extends State<MeetingListScreen> {
   }
 
   bool get _isMC => _currentUserRole == 'MC';
+  bool get _isBC => _currentUserRole == 'BC';
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +84,7 @@ class _MeetingListScreenState extends State<MeetingListScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    _isMC ? 'MC' : 'BC',
+                    _isMC ? 'MC' : _isBC ? 'BC' : 'SBC',
                     style: TextStyle(
                       color: _isMC ? AppColors.secondary : Colors.white,
                       fontWeight: FontWeight.w800,
@@ -178,11 +179,29 @@ class _MeetingListScreenState extends State<MeetingListScreen> {
   }
 
   Widget _buildList() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
+    // 1. Filter langsung pada Stream untuk menghemat kuota Firestore
+    Stream<QuerySnapshot> meetingStream;
+
+    if (_isMC) {
+      // MC berhak mengunduh seluruh data
+      meetingStream = FirebaseFirestore.instance
           .collection('meetings')
-          .orderBy('dateTime')
-          .snapshots(),
+          // Hapus orderBy di sini agar tidak memicu error Composite Index, 
+          // karena data akan diurutkan secara lokal di langkah bawah.
+          .snapshots();
+    } else {
+      // BC HANYA mengunduh data yang terkait dengan UID-nya
+      meetingStream = FirebaseFirestore.instance
+          .collection('meetings')
+          .where(Filter.or(
+            Filter('brokerUid', isEqualTo: _currentUserUid),
+            Filter('coverBrokerUid', isEqualTo: _currentUserUid),
+          ))
+          .snapshots();
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: meetingStream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return _buildEmptyState(
@@ -190,25 +209,15 @@ class _MeetingListScreenState extends State<MeetingListScreen> {
         }
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-              child:
-                  CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2));
+              child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2));
         }
 
         final now = DateTime.now();
         var allMeetings = snapshot.requireData.docs
-            .map((d) =>
-                MeetingModel.fromMap(d.data() as Map<String, dynamic>, d.id))
+            .map((d) => MeetingModel.fromMap(d.data() as Map<String, dynamic>, d.id))
             .toList();
 
-        // BC hanya melihat jadwal yang ia buat atau yang ia cover
-        if (!_isMC) {
-          allMeetings = allMeetings
-              .where((m) =>
-                  m.brokerUid == _currentUserUid ||
-                  m.coverBrokerUid == _currentUserUid)
-              .toList();
-        }
-
+        // 2. Pemisahan dan Pengurutan Lokal
         List<MeetingModel> meetings;
         if (_tab == 'upcoming') {
           meetings = allMeetings.where((m) => m.dateTime.isAfter(now)).toList();
@@ -220,17 +229,12 @@ class _MeetingListScreenState extends State<MeetingListScreen> {
 
         if (meetings.isEmpty) {
           return _buildEmptyState(
-            _tab == 'upcoming'
-                ? Icons.event_available_outlined
-                : Icons.event_busy_outlined,
+            _tab == 'upcoming' ? Icons.event_available_outlined : Icons.event_busy_outlined,
             _tab == 'upcoming' ? 'Belum ada jadwal' : 'Belum ada riwayat',
-            _tab == 'upcoming'
-                ? 'Tambah jadwal baru dengan tombol di bawah'
-                : 'Jadwal yang sudah lewat akan tampil di sini',
+            _tab == 'upcoming' ? 'Tambah jadwal baru dengan tombol di bawah' : 'Jadwal yang sudah lewat akan tampil di sini',
           );
         }
 
-        // Kelompokkan berdasarkan tanggal
         final Map<String, List<MeetingModel>> grouped = {};
         for (final m in meetings) {
           final key = DateFormat('yyyy-MM-dd').format(m.dateTime);
@@ -249,15 +253,10 @@ class _MeetingListScreenState extends State<MeetingListScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: EdgeInsets.only(
-                      top: gi == 0 ? 0 : 18, bottom: 10, left: 4),
+                  padding: EdgeInsets.only(top: gi == 0 ? 0 : 18, bottom: 10, left: 4),
                   child: Text(
                     _formatDateHeader(items.first.dateTime),
-                    style: const TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                        letterSpacing: 0.5),
+                    style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.5),
                   ),
                 ),
                 ...items.map((m) => _MeetingCard(
@@ -265,14 +264,8 @@ class _MeetingListScreenState extends State<MeetingListScreen> {
                       isMC: _isMC,
                       currentUserUid: _currentUserUid,
                       currentUserName: _currentUserName,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => AddMeetingScreen(meeting: m)),
-                      ),
-                      onStatusAction: _isMC
-                          ? (meeting) => _showMCActionSheet(meeting)
-                          : null,
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AddMeetingScreen(meeting: m))),
+                      onStatusAction: _isMC ? (meeting) => _showMCActionSheet(meeting) : null,
                     )),
               ],
             );
@@ -281,7 +274,6 @@ class _MeetingListScreenState extends State<MeetingListScreen> {
       },
     );
   }
-
   // ── MC Action Sheet ──────────────────────────────────────────────────────────
   Future<void> _showMCActionSheet(MeetingModel meeting) async {
     await showModalBottomSheet(
@@ -465,10 +457,10 @@ class _MCActionSheetState extends State<_MCActionSheet> {
                 const SizedBox(height: 10),
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
-                    // Ambil semua user dengan role BC
+                    // Ambil semua user dengan role SBC atau MC
                     stream: FirebaseFirestore.instance
                         .collection('users')
-                        .where('role', isEqualTo: 'BC')
+                        .where('role', whereIn: ['SBC', 'MC'])
                         .snapshots(),
                     builder: (context, snap) {
                       if (!snap.hasData) {
@@ -620,7 +612,7 @@ class _MCActionSheetState extends State<_MCActionSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(meeting.title,
+                      Text("Meeting dengan ${meeting.clientName}",
                           style: const TextStyle(
                               color: AppColors.primary,
                               fontWeight: FontWeight.w800,
@@ -702,7 +694,7 @@ class _MCActionSheetState extends State<_MCActionSheet> {
                       child: Text(
                         _coverBrokerUid.isNotEmpty
                             ? _coverBrokerName
-                            : 'Pilih broker pengganti (opsional)',
+                            : 'Pilih cover broker untuk jadwal ini',
                         style: TextStyle(
                           color: _coverBrokerUid.isNotEmpty
                               ? AppColors.primary
@@ -1001,17 +993,11 @@ class _MeetingCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(meeting.title,
-                          style: const TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14.5),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis),
-                      if (meeting.clientName.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        _iconRow(Icons.person_outline, meeting.clientName),
-                      ],
+                      Text(
+                        meeting.clientName,
+                        style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 14.5),
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                      ),
                       if (meeting.location.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         _iconRow(Icons.location_on_outlined, meeting.location),
@@ -1053,25 +1039,37 @@ class _MeetingCard extends StatelessWidget {
                                     AppColors.secondary.withOpacity(0.12),
                                 borderRadius: BorderRadius.circular(8),
                               ),
+                              child: Wrap(
+                        spacing: 6, // Jarak horizontal antar badge
+                        runSpacing: 6, // Jarak vertikal jika turun ke baris baru
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          _StatusBadge(status: status),
+                          if (!isPast && meeting.reminderMinutes > 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.secondary.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(
-                                      Icons
-                                          .notifications_active_outlined,
-                                      size: 11,
-                                      color: AppColors.secondary),
+                                  const Icon(Icons.notifications_active_outlined,
+                                      size: 11, color: AppColors.secondary),
                                   const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text('${meeting.reminderMinutes} mnt',
-                                        style: const TextStyle(
-                                            color: AppColors.secondary,
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.w800)
-                                            ),
-                                  ),
+                                  // HAPUS Expanded di sini agar ukuran kontainer menyesuaikan isi teks
+                                  Text('${meeting.reminderMinutes} mnt',
+                                      style: const TextStyle(
+                                          color: AppColors.secondary,
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w800)),
                                 ],
                               ),
+                            ),
+                        ],
+                      ),
                             ),
                           ],
                         ],

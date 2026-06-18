@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'client_detail_screen.dart';
@@ -68,40 +69,51 @@ class _ClientListScreenState extends State<ClientListScreen> {
             ),
           ),
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('clients').orderBy('name').snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) return _buildEmptyState(Icons.error_outline, 'Terjadi kesalahan', 'Periksa koneksi Anda');
-                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2));
+            child: StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance.collection('users').doc(FirebaseAuth.instance.currentUser!.uid).snapshots(),
+              builder: (context, userSnapshot) {
+                if (userSnapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2));
+                
+                final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
+                final bool isMC = userData != null && userData['role'] == 'MC';
 
-                final allDocs = snapshot.requireData.docs;
-                final clients = allDocs.map((d) => ClientModel.fromMap(d.data() as Map<String, dynamic>, d.id)).where((c) {
-                  final matchSearch = _searchQuery.isEmpty || c.name.toLowerCase().contains(_searchQuery) || c.phone.contains(_searchQuery);
-                  final matchFilter = _filterStatus == 'Semua' || c.prospectStatus == _filterStatus;
-                  return matchSearch && matchFilter;
-                }).toList();
+                Stream<QuerySnapshot> clientStream = isMC 
+                    ? FirebaseFirestore.instance.collection('clients').snapshots()
+                    : FirebaseFirestore.instance.collection('clients').where('brokerUid', isEqualTo: FirebaseAuth.instance.currentUser!.uid).snapshots();
 
-                if (clients.isEmpty) return _buildEmptyState(Icons.person_search, 'Tidak ada klien', _searchQuery.isNotEmpty ? 'Coba kata kunci lain' : 'Tambah klien baru dengan tombol +');
+                return StreamBuilder<QuerySnapshot>(
+                  stream: clientStream,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) return _buildEmptyState(Icons.error_outline, 'Terjadi kesalahan', 'Periksa koneksi Anda');
+                    if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2));
 
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-                  itemCount: clients.length,
-                  itemBuilder: (context, index) {
-                    return _ClientCard(
-                      client: clients[index],
-                      onTap: () {
-                        // Navigasi ke halaman detail dengan membawa data klien
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ClientDetailScreen(client: clients[index]),
-                          ),
+                    final allDocs = snapshot.requireData.docs;
+                    var clients = allDocs.map((d) => ClientModel.fromMap(d.data() as Map<String, dynamic>, d.id)).where((c) {
+                      final matchSearch = _searchQuery.isEmpty || c.name.toLowerCase().contains(_searchQuery) || c.phone.contains(_searchQuery);
+                      final matchFilter = _filterStatus == 'Semua' || c.prospectStatus == _filterStatus;
+                      return matchSearch && matchFilter;
+                    }).toList();
+
+                    // Urutkan klien berdasarkan abjad
+                    clients.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+                    if (clients.isEmpty) return _buildEmptyState(Icons.person_search, 'Tidak ada klien', _searchQuery.isNotEmpty ? 'Coba kata kunci lain' : 'Tambah klien baru dengan tombol +');
+
+                    return ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                      itemCount: clients.length,
+                      itemBuilder: (context, index) {
+                        return _ClientCard(
+                          client: clients[index],
+                          onTap: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => ClientDetailScreen(client: clients[index])));
+                          },
                         );
                       },
                     );
                   },
                 );
-              },
+              }
             ),
           ),
         ],

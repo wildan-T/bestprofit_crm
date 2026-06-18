@@ -61,7 +61,6 @@ class _AddMeetingScreenState extends State<AddMeetingScreen>
 
     final m = widget.meeting;
     if (m != null) {
-      _titleController.text    = m.title;
       _clientController.text   = m.clientName;
       _locationController.text = m.location;
       _notesController.text    = m.notes;
@@ -157,126 +156,84 @@ class _AddMeetingScreenState extends State<AddMeetingScreen>
 
   // ── PICK CLIENT FROM FIRESTORE ───────────────────────────────────────────────
   Future<void> _pickClient() async {
-    final searchCtrl = TextEditingController();
+    final searchController = TextEditingController();
     String search = '';
+    final user = FirebaseAuth.instance.currentUser;
 
     final selected = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) => DraggableScrollableSheet(
-          initialChildSize: 0.7,
-          minChildSize: 0.4,
-          maxChildSize: 0.9,
-          builder: (context, scrollCtrl) => Container(
-            decoration: const BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40, height: 4,
-                    decoration: BoxDecoration(
-                        color: AppColors.neutral.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(2)),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return DraggableScrollableSheet(
+              initialChildSize: 0.7, minChildSize: 0.4, maxChildSize: 0.9,
+              builder: (context, scrollController) {
+                return Container(
+                  decoration: const BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.neutral.withOpacity(0.3), borderRadius: BorderRadius.circular(2)))),
+                      const SizedBox(height: 16),
+                      const Text('Pilih Klien Anda', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.primary)),
+                      const SizedBox(height: 14),
+                      Container(
+                        decoration: BoxDecoration(color: AppColors.backgroundLight, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.neutral.withOpacity(0.2))),
+                        child: TextField(
+                          controller: searchController,
+                          style: const TextStyle(color: AppColors.primary, fontSize: 14),
+                          onChanged: (val) => setSheetState(() => search = val.toLowerCase()),
+                          decoration: const InputDecoration(
+                            hintText: 'Cari nama klien...', hintStyle: TextStyle(color: AppColors.neutral, fontSize: 14),
+                            prefixIcon: Icon(Icons.search, color: AppColors.neutral, size: 20), border: InputBorder.none, contentPadding: EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: StreamBuilder<QuerySnapshot>(
+                          // Hanya mengambil klien milik broker ini saja
+                          stream: FirebaseFirestore.instance.collection('clients').where('brokerUid', isEqualTo: user?.uid).snapshots(),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2));
+                            
+                            final docs = snapshot.data!.docs.where((d) {
+                              final name = (d.data() as Map<String, dynamic>)['name']?.toString().toLowerCase() ?? '';
+                              return search.isEmpty || name.contains(search);
+                            }).toList();
+
+                            if (docs.isEmpty) return const Center(child: Text('Anda belum memiliki klien', style: TextStyle(color: AppColors.neutral)));
+
+                            return ListView.builder(
+                              controller: scrollController,
+                              itemCount: docs.length,
+                              itemBuilder: (context, index) {
+                                final data = docs[index].data() as Map<String, dynamic>;
+                                final name = data['name'] ?? '';
+                                final phone = data['phone'] ?? '';
+                                return ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: Container(width: 40, height: 40, decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: AppColors.primary.withOpacity(0.08)), child: Center(child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)))),
+                                  title: Text(name, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 14)),
+                                  subtitle: Text(phone, style: const TextStyle(color: AppColors.neutral, fontSize: 12)),
+                                  onTap: () => Navigator.pop(context, name),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                const Text('Pilih Klien',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.primary)),
-                const SizedBox(height: 14),
-                Container(
-                  decoration: BoxDecoration(
-                      color: AppColors.backgroundLight,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.neutral.withOpacity(0.2))),
-                  child: TextField(
-                    controller: searchCtrl,
-                    style: const TextStyle(color: AppColors.primary, fontSize: 14),
-                    onChanged: (v) => setSheetState(() => search = v.toLowerCase()),
-                    decoration: const InputDecoration(
-                      hintText: 'Cari nama klien...',
-                      hintStyle: TextStyle(color: AppColors.neutral, fontSize: 14),
-                      prefixIcon: Icon(Icons.search, color: AppColors.neutral, size: 20),
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Expanded(
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('clients')
-                        .orderBy('name')
-                        .snapshots(),
-                    builder: (context, snap) {
-                      if (!snap.hasData) {
-                        return const Center(
-                            child: CircularProgressIndicator(
-                                color: AppColors.primary, strokeWidth: 2));
-                      }
-                      final docs = snap.data!.docs.where((d) {
-                        final name = (d.data() as Map<String, dynamic>)['name']
-                                ?.toString()
-                                .toLowerCase() ??
-                            '';
-                        return search.isEmpty || name.contains(search);
-                      }).toList();
-                      if (docs.isEmpty) {
-                        return const Center(
-                            child: Text('Klien tidak ditemukan',
-                                style: TextStyle(color: AppColors.neutral)));
-                      }
-                      return ListView.builder(
-                        controller: scrollCtrl,
-                        itemCount: docs.length,
-                        itemBuilder: (context, i) {
-                          final data =
-                              docs[i].data() as Map<String, dynamic>;
-                          final name  = data['name'] ?? '';
-                          final phone = data['phone'] ?? '';
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Container(
-                              width: 40, height: 40,
-                              decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(10),
-                                  color: AppColors.primary.withOpacity(0.08)),
-                              child: Center(
-                                  child: Text(
-                                      name.isNotEmpty
-                                          ? name[0].toUpperCase()
-                                          : '?',
-                                      style: const TextStyle(
-                                          color: AppColors.primary,
-                                          fontWeight: FontWeight.w800))),
-                            ),
-                            title: Text(name,
-                                style: const TextStyle(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14)),
-                            subtitle: Text(phone,
-                                style: const TextStyle(
-                                    color: AppColors.neutral, fontSize: 12)),
-                            onTap: () => Navigator.pop(context, name),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+                );
+              },
+            );
+          },
+        );
+      },
     );
 
     if (selected != null) setState(() => _clientController.text = selected);
@@ -292,7 +249,6 @@ class _AddMeetingScreenState extends State<AddMeetingScreen>
 
       final meetingData = MeetingModel(
         id: widget.meeting?.id ?? '',
-        title: _titleController.text.trim(),
         clientName: _clientController.text.trim(),
         location: _locationController.text.trim(),
         notes: _notesController.text.trim(),
@@ -333,7 +289,7 @@ class _AddMeetingScreenState extends State<AddMeetingScreen>
 
       await NotificationService.instance.scheduleMeetingReminder(
         id: notifId,
-        title: '⏰ Pengingat: ${meetingData.title}',
+        title: '⏰ Meeting dengan ${meetingData.clientName}',
         body: body,
         meetingDateTime: dateTime,
         reminderMinutesBefore: _reminderMinutes,
@@ -378,9 +334,7 @@ class _AddMeetingScreenState extends State<AddMeetingScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Hapus Jadwal?',
             style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
-        content: Text(
-            'Hapus jadwal "${widget.meeting!.title}"? Pengingat terkait juga akan dibatalkan.',
-            style: const TextStyle(color: AppColors.neutral)),
+        content: Text('Apakah Anda yakin ingin menghapus jadwal dengan "${widget.meeting!.clientName}"?', style: const TextStyle(color: AppColors.neutral)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -537,19 +491,11 @@ class _AddMeetingScreenState extends State<AddMeetingScreen>
                 const _SectionHeader(label: 'Detail Jadwal'),
                 const SizedBox(height: 14),
                 _buildField(
-                  controller: _titleController,
-                  label: 'Judul Meeting',
-                  hint: 'Contoh: Presentasi Produk Investasi',
-                  icon: Icons.event_note_outlined,
-                  validator: (v) =>
-                      v!.isEmpty ? 'Judul tidak boleh kosong' : null,
-                ),
-                const SizedBox(height: 14),
-                _buildField(
                   controller: _clientController,
-                  label: 'Nama Klien (Opsional)',
+                  label: 'Nama Klien',
                   hint: 'Pilih atau ketik nama klien',
                   icon: Icons.person_outline,
+                  validator: (v) => v!.isEmpty ? 'Nama klien harus diisi' : null,
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.search, color: AppColors.secondary),
                     onPressed: _pickClient,
@@ -559,7 +505,7 @@ class _AddMeetingScreenState extends State<AddMeetingScreen>
                 const SizedBox(height: 14),
                 _buildField(
                   controller: _locationController,
-                  label: 'Lokasi (Opsional)',
+                  label: 'Lokasi / Platform Meeting',
                   hint: 'Contoh: Kantor Pusat / Zoom Meeting',
                   icon: Icons.location_on_outlined,
                 ),
