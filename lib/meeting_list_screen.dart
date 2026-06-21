@@ -904,11 +904,15 @@ class _StatusBadge extends StatelessWidget {
         children: [
           Icon(_icon, color: _color, size: 12),
           const SizedBox(width: 5),
-          Text(status.label,
-              style: TextStyle(
-                  color: _color,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w800)),
+          // Tambahkan Flexible agar teks panjang tidak menabrak batas layar
+          Flexible(
+            child: Text(
+              status.label,
+              style: TextStyle(color: _color, fontSize: 10.5, fontWeight: FontWeight.w800),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );
@@ -934,11 +938,10 @@ class _MeetingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final now      = DateTime.now();
-    final isPast   = !meeting.dateTime.isAfter(now);
+    final now       = DateTime.now();
+    final isPast    = !meeting.dateTime.isAfter(now);
     final timeLabel = DateFormat('HH:mm').format(meeting.dateTime);
-    final status   = meeting.status;
-
+    final status    = meeting.status;
     final statusColor = _statusColor(status);
 
     return Container(
@@ -958,37 +961,27 @@ class _MeetingCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Kolom waktu
+                // Kolom Waktu
                 Container(
                   width: 56,
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    color: isPast
-                        ? AppColors.neutral.withOpacity(0.1)
-                        : statusColor.withOpacity(0.1),
+                    color: isPast ? AppColors.neutral.withOpacity(0.1) : statusColor.withOpacity(0.1),
                   ),
                   child: Column(
                     children: [
                       Text(timeLabel,
-                          style: TextStyle(
-                              color: isPast ? AppColors.neutral : statusColor,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15)),
+                          style: TextStyle(color: isPast ? AppColors.neutral : statusColor, fontWeight: FontWeight.w800, fontSize: 15)),
                       const SizedBox(height: 2),
                       Text('WIB',
-                          style: TextStyle(
-                              color: (isPast
-                                      ? AppColors.neutral
-                                      : statusColor)
-                                  .withOpacity(0.6),
-                              fontSize: 9,
-                              fontWeight: FontWeight.w600)),
+                          style: TextStyle(color: (isPast ? AppColors.neutral : statusColor).withOpacity(0.6), fontSize: 9, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ),
                 const SizedBox(width: 14),
-                // Info
+                
+                // Kolom Informasi Utama
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1005,50 +998,32 @@ class _MeetingCard extends StatelessWidget {
 
                       // Broker info
                       const SizedBox(height: 4),
-                      _iconRow(Icons.assignment_ind_outlined,
-                          'BC: ${meeting.brokerName}',
-                          color: AppColors.secondary),
+                      _iconRow(Icons.assignment_ind_outlined, 'BC: ${meeting.brokerName}', color: AppColors.secondary),
 
-                      // Cover broker jika ada
+                      // Cover broker
                       if (meeting.coverBrokerName.isNotEmpty) ...[
                         const SizedBox(height: 2),
-                        _iconRow(Icons.swap_horiz,
-                            'Cover: ${meeting.coverBrokerName}',
-                            color: AppColors.tertiary),
+                        _iconRow(Icons.swap_horiz, 'Cover: ${meeting.coverBrokerName}', color: AppColors.tertiary),
                       ],
 
-                      // MC info jika ada
+                      // MC info
                       if (meeting.mcName.isNotEmpty) ...[
                         const SizedBox(height: 2),
-                        _iconRow(Icons.manage_accounts_outlined,
-                            'MC: ${meeting.mcName}',
-                            color: AppColors.primary.withOpacity(0.7)),
+                        _iconRow(Icons.manage_accounts_outlined, 'MC: ${meeting.mcName}', color: AppColors.primary.withOpacity(0.7)),
                       ],
 
                       const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          _StatusBadge(status: status),
-                          if (!isPast && meeting.reminderMinutes > 0) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color:
-                                    AppColors.secondary.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Wrap(
-                        spacing: 6, // Jarak horizontal antar badge
-                        runSpacing: 6, // Jarak vertikal jika turun ke baris baru
+
+                      // BAGIAN INI DIPASTIKAN HANYA MENGGUNAKAN WRAP, BUKAN ROW
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           _StatusBadge(status: status),
                           if (!isPast && meeting.reminderMinutes > 0)
                             Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: AppColors.secondary.withOpacity(0.12),
                                 borderRadius: BorderRadius.circular(8),
@@ -1056,41 +1031,34 @@ class _MeetingCard extends StatelessWidget {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.notifications_active_outlined,
-                                      size: 11, color: AppColors.secondary),
+                                  const Icon(Icons.notifications_active_outlined, size: 11, color: AppColors.secondary),
                                   const SizedBox(width: 4),
-                                  // HAPUS Expanded di sini agar ukuran kontainer menyesuaikan isi teks
-                                  Text('${meeting.reminderMinutes} mnt',
-                                      style: const TextStyle(
-                                          color: AppColors.secondary,
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w800)),
+                                  // Menggunakan Flexible agar aman 100% dari overflow
+                                  Flexible(
+                                    child: Text(
+                                      '${meeting.reminderMinutes} mnt',
+                                      style: const TextStyle(color: AppColors.secondary, fontSize: 10.5, fontWeight: FontWeight.w800),
+                                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
                         ],
                       ),
-                            ),
-                          ],
-                        ],
-                      ),
                     ],
                   ),
                 ),
-                // MC chip — tap untuk action
+                
+                // Icon paling kanan
                 if (isMC)
                   Container(
                     padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.tune,
-                        color: AppColors.primary, size: 18),
+                    decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
+                    child: const Icon(Icons.tune, color: AppColors.primary, size: 18),
                   )
                 else
-                  const Icon(Icons.chevron_right,
-                      color: AppColors.neutral, size: 18),
+                  const Icon(Icons.chevron_right, color: AppColors.neutral, size: 18),
               ],
             ),
           ),
@@ -1106,12 +1074,8 @@ class _MeetingCard extends StatelessWidget {
         const SizedBox(width: 4),
         Expanded(
           child: Text(text,
-              style: TextStyle(
-                  color: color ?? AppColors.neutral,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
+              style: TextStyle(color: color ?? AppColors.neutral, fontSize: 12, fontWeight: FontWeight.w500),
+              maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
       ],
     );

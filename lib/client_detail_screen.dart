@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'client_model.dart';
-import 'app_colors.dart'; // Mengambil AppColors
+import 'image_helper.dart';
+import 'app_colors.dart';
 
 class ClientDetailScreen extends StatefulWidget {
   final ClientModel client;
@@ -20,8 +21,10 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
   late TextEditingController _professionController;
 
   late String _selectedStatus;
+  String _buktiTransferBase64 = '';
   bool _isLoading = false;
   bool _isDeleting = false;
+  bool _isUploadingProof = false;
 
   final List<Map<String, dynamic>> _statusOptions = [
     {'value': 'Cold', 'color': AppColors.primary},
@@ -34,12 +37,12 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
   @override
   void initState() {
     super.initState();
-    // Mengisi controller dengan data klien yang dipilih
     _nameController = TextEditingController(text: widget.client.name);
     _phoneController = TextEditingController(text: widget.client.phone);
     _addressController = TextEditingController(text: widget.client.address);
     _professionController = TextEditingController(text: widget.client.profession);
     _selectedStatus = widget.client.prospectStatus;
+    _buktiTransferBase64 = widget.client.buktiTransferBase64;
   }
 
   @override
@@ -51,41 +54,152 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
     super.dispose();
   }
 
-  // --- FUNGSI UPDATE DATA ---
+  // ── HANDLE PERUBAHAN STATUS ───────────────────────────────────────────────
+  Future<void> _onStatusChanged(String newStatus) async {
+    final wasJoin = _selectedStatus == 'Join';
+    final isNowJoin = newStatus == 'Join';
+
+    setState(() => _selectedStatus = newStatus);
+
+    // Jika baru saja berubah MENJADI 'Join' dan belum ada bukti transfer,
+    // langsung minta upload bukti transfer.
+    if (isNowJoin && !wasJoin && _buktiTransferBase64.isEmpty) {
+      await _pickBuktiTransfer(isRequired: true);
+    }
+  }
+
+  // ── PILIH & UPLOAD BUKTI TRANSFER ─────────────────────────────────────────
+  Future<void> _pickBuktiTransfer({bool isRequired = false}) async {
+    setState(() => _isUploadingProof = true);
+    try {
+      final base64Image = await ImageHelper.pickAndEncode(context);
+
+      if (base64Image == null) {
+        // User membatalkan pemilihan gambar
+        if (isRequired && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'Bukti transfer wajib diunggah untuk status "Join"',
+                style: TextStyle(color: Colors.white)),
+            backgroundColor: Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+        return;
+      }
+
+      setState(() => _buktiTransferBase64 = base64Image);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Row(children: const [
+            Icon(Icons.check_circle, color: AppColors.tertiary, size: 18),
+            SizedBox(width: 8),
+            Text('Bukti transfer berhasil dipilih',
+                style: TextStyle(color: Colors.white)),
+          ]),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Gagal memproses gambar: $e',
+              style: const TextStyle(color: Colors.white)),
+          backgroundColor: const Color(0xFF8B1A1A),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isUploadingProof = false);
+    }
+  }
+
+  void _viewFullImage() {
+    final bytes = ImageHelper.decodeToBytes(_buktiTransferBase64);
+    if (bytes == null) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              child: Image.memory(bytes, fit: BoxFit.contain),
+            ),
+            Positioned(
+              top: 8, right: 8,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                onPressed: () => Navigator.pop(ctx),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── FUNGSI UPDATE DATA ────────────────────────────────────────────────────
   Future<void> _updateClient() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Validasi: status Join wajib punya bukti transfer
+    if (_selectedStatus == 'Join' && _buktiTransferBase64.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+            'Status "Join" wajib menyertakan bukti transfer',
+            style: TextStyle(color: Colors.white)),
+        backgroundColor: Color(0xFFEF4444),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      // Melakukan update pada dokumen berdasarkan ID
       await FirebaseFirestore.instance.collection('clients').doc(widget.client.id).update({
         'name': _nameController.text.trim(),
         'phone': _phoneController.text.trim(),
         'address': _addressController.text.trim(),
         'profession': _professionController.text.trim(),
         'prospectStatus': _selectedStatus,
-        'updatedAt': FieldValue.serverTimestamp(), // Melacak kapan terakhir diedit
+        'buktiTransferBase64': _buktiTransferBase64,
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: const Row(children: [Icon(Icons.check_circle, color: AppColors.tertiary, size: 18), SizedBox(width: 8), Text('Data klien berhasil diperbarui!', style: TextStyle(color: Colors.white))]),
-          backgroundColor: AppColors.primary, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), margin: const EdgeInsets.all(16),
+          content: const Row(children: [
+            Icon(Icons.check_circle, color: AppColors.tertiary, size: 18),
+            SizedBox(width: 8),
+            Text('Data klien berhasil diperbarui!', style: TextStyle(color: Colors.white))
+          ]),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
         ));
-        Navigator.pop(context); // Kembali ke halaman sebelumnya
+        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal memperbarui: $e', style: const TextStyle(color: Colors.white)), backgroundColor: const Color(0xFF8B1A1A)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Gagal memperbarui: $e', style: const TextStyle(color: Colors.white)),
+            backgroundColor: const Color(0xFF8B1A1A)));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // --- FUNGSI HAPUS DATA ---
+  // ── FUNGSI HAPUS DATA ─────────────────────────────────────────────────────
   Future<void> _deleteClient() async {
-    // Tampilkan dialog konfirmasi terlebih dahulu
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -116,7 +230,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
             content: const Text('Data klien berhasil dihapus', style: TextStyle(color: Colors.white)),
             backgroundColor: AppColors.neutral, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ));
-          Navigator.pop(context); // Kembali ke list
+          Navigator.pop(context);
         }
       } catch (e) {
         if (mounted) {
@@ -138,11 +252,10 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 18), onPressed: () => Navigator.pop(context)),
         title: const Text('Detail & Edit Klien', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
         actions: [
-          // Tombol Hapus di pojok kanan atas
           IconButton(
-            icon: _isDeleting 
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-              : const Icon(Icons.delete_outline, color: Colors.white),
+            icon: _isDeleting
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : const Icon(Icons.delete_outline, color: Colors.white),
             onPressed: _isDeleting ? null : _deleteClient,
             tooltip: 'Hapus Klien',
           ),
@@ -155,7 +268,6 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Badge Info Broker
               if (widget.client.brokerName.isNotEmpty) ...[
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -181,18 +293,30 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
               const SizedBox(height: 14),
               _buildField(controller: _professionController, label: 'Profesi / Pekerjaan', hint: 'Contoh: Pengusaha, Karyawan Swasta', icon: Icons.work_outline),
               const SizedBox(height: 28),
-              
+
               const _SectionHeader(label: 'Alamat Klien'),
               const SizedBox(height: 14),
               _buildField(controller: _addressController, label: 'Alamat Lengkap', hint: 'Jl. ... No. ..., Kota', icon: Icons.location_on_outlined, maxLines: 3),
               const SizedBox(height: 28),
-              
+
               const _SectionHeader(label: 'Status Prospek'),
               const SizedBox(height: 14),
               _buildStatusSelector(),
-              const SizedBox(height: 36),
-              
-              // Tombol Simpan Perubahan
+              const SizedBox(height: 24),
+
+              // ── BUKTI TRANSFER (muncul hanya jika status Join) ───────────
+              if (_selectedStatus == 'Join') ...[
+                const _SectionHeader(label: 'Bukti Transfer'),
+                const SizedBox(height: 6),
+                const Text(
+                  'Wajib diunggah untuk klien dengan status "Join". Gambar disimpan terkompresi langsung di database.',
+                  style: TextStyle(color: AppColors.neutral, fontSize: 12),
+                ),
+                const SizedBox(height: 14),
+                _buildBuktiTransferSection(),
+                const SizedBox(height: 28),
+              ],
+
               SizedBox(
                 width: double.infinity, height: 54,
                 child: ElevatedButton(
@@ -218,6 +342,113 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  // ── WIDGET BUKTI TRANSFER ──────────────────────────────────────────────────
+  Widget _buildBuktiTransferSection() {
+    final hasImage = _buktiTransferBase64.isNotEmpty;
+    final bytes = hasImage ? ImageHelper.decodeToBytes(_buktiTransferBase64) : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (hasImage && bytes != null) ...[
+          GestureDetector(
+            onTap: _viewFullImage,
+            child: Container(
+              width: double.infinity,
+              height: 200,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.tertiary.withOpacity(0.4), width: 1.5),
+                image: DecorationImage(image: MemoryImage(bytes), fit: BoxFit.cover),
+              ),
+              child: Align(
+                alignment: Alignment.bottomRight,
+                child: Container(
+                  margin: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.zoom_in, color: Colors.white, size: 14),
+                      SizedBox(width: 4),
+                      Text('Lihat penuh', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.check_circle, color: AppColors.tertiary, size: 14),
+              const SizedBox(width: 6),
+              Text(
+                'Tersimpan • ${ImageHelper.estimateSizeKB(_buktiTransferBase64).toStringAsFixed(0)} KB',
+                style: const TextStyle(color: AppColors.tertiary, fontSize: 11.5, fontWeight: FontWeight.w600),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: _isUploadingProof ? null : () => _pickBuktiTransfer(),
+                icon: const Icon(Icons.refresh, size: 15, color: AppColors.primary),
+                label: const Text('Ganti', style: TextStyle(color: AppColors.primary, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0)),
+              ),
+            ],
+          ),
+        ] else ...[
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: _isUploadingProof ? null : () => _pickBuktiTransfer(isRequired: true),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                color: const Color(0xFFEF4444).withOpacity(0.04),
+                border: Border.all(
+                  color: const Color(0xFFEF4444).withOpacity(0.4),
+                  width: 1.5,
+                  style: BorderStyle.solid,
+                ),
+              ),
+              child: _isUploadingProof
+                  ? const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2.5),
+                          SizedBox(height: 12),
+                          Text('Memproses gambar...', style: TextStyle(color: AppColors.neutral, fontSize: 12.5)),
+                        ],
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        Icon(Icons.upload_file_outlined, size: 36, color: const Color(0xFFEF4444).withOpacity(0.7)),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Unggah Bukti Transfer',
+                          style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 14),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Wajib diisi • Ketuk untuk pilih foto',
+                          style: TextStyle(color: const Color(0xFFEF4444).withOpacity(0.8), fontSize: 11.5, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -251,7 +482,7 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
         final isSelected = _selectedStatus == opt['value'];
         final color = opt['color'] as Color;
         return GestureDetector(
-          onTap: () => setState(() => _selectedStatus = opt['value']),
+          onTap: () => _onStatusChanged(opt['value']),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
@@ -265,6 +496,10 @@ class _ClientDetailScreenState extends State<ClientDetailScreen> {
               children: [
                 if (isSelected) Padding(padding: const EdgeInsets.only(right: 6), child: Icon(Icons.check_circle, color: color, size: 14)),
                 Text(opt['value'], style: TextStyle(color: isSelected ? color : AppColors.neutral, fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600, fontSize: 13)),
+                if (opt['value'] == 'Join') ...[
+                  const SizedBox(width: 4),
+                  Icon(Icons.receipt_long, size: 12, color: isSelected ? color : AppColors.neutral.withOpacity(0.6)),
+                ],
               ],
             ),
           ),

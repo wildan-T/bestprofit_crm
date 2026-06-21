@@ -50,25 +50,25 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
         title: const Text('Manajemen Akun',
             style: TextStyle(
                 color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-        actions: [
-          // Tombol tambah akun baru
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppColors.secondary.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.person_add_outlined,
-                    color: AppColors.secondary, size: 20),
-              ),
-              onPressed: () => _showUserForm(context),
-              tooltip: 'Tambah Akun',
-            ),
-          ),
-        ],
+        // actions: [
+        //   // Tombol tambah akun baru
+        //   Padding(
+        //     padding: const EdgeInsets.only(right: 8),
+        //     child: IconButton(
+        //       icon: Container(
+        //         padding: const EdgeInsets.all(6),
+        //         decoration: BoxDecoration(
+        //           color: AppColors.secondary.withOpacity(0.2),
+        //           borderRadius: BorderRadius.circular(8),
+        //         ),
+        //         child: const Icon(Icons.person_add_outlined,
+        //             color: AppColors.secondary, size: 20),
+        //       ),
+        //       onPressed: () => _showUserForm(context),
+        //       tooltip: 'Tambah Akun',
+        //     ),
+        //   ),
+        // ],
       ),
       body: Column(
         children: [

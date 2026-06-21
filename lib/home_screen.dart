@@ -520,13 +520,13 @@ class _ProfileTab extends StatelessWidget {
         title: const Text('Profil Saya',
             style: TextStyle(
                 color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: () => _logout(context),
-            tooltip: 'Keluar',
-          ),
-        ],
+        // actions: [
+        //   IconButton(
+        //     icon: const Icon(Icons.logout, color: Colors.white),
+        //     onPressed: () => _logout(context),
+        //     tooltip: 'Keluar',
+        //   ),
+        // ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseFirestore.instance

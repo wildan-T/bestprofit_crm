@@ -220,6 +220,7 @@ class _ClientCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _statusColor(client.prospectStatus);
+    final hasBuktiTransfer = client.buktiTransferBase64.isNotEmpty;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.neutral.withOpacity(0.2))),
@@ -271,7 +272,14 @@ class _ClientCard extends StatelessWidget {
                       child: Text(client.prospectStatus, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
                     ),
                     const SizedBox(height: 6),
-                    const Icon(Icons.chevron_right, color: AppColors.neutral, size: 18),
+                    if (client.prospectStatus == 'Join') ...[
+                      Icon(
+                        hasBuktiTransfer ? Icons.receipt_long : Icons.warning_amber_rounded,
+                        size: 16,
+                        color: hasBuktiTransfer ? AppColors.tertiary : const Color(0xFFEF4444),
+                      ),
+                    ] else
+                      const Icon(Icons.chevron_right, color: AppColors.neutral, size: 18),
                   ],
                 ),
               ],

@@ -48,6 +48,9 @@ dependencies:
   flutter_local_notifications: ^22.0.0
   firebase_functions: ^0.0.1-dev
 
+  image_picker: ^1.1.2   # untuk ambil foto dari kamera/galeri
+  image: ^4.2.0           # untuk resize & compress gambar sebelum di-base64
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

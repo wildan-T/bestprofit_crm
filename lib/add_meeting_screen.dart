@@ -18,7 +18,6 @@ class AddMeetingScreen extends StatefulWidget {
 class _AddMeetingScreenState extends State<AddMeetingScreen>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _titleController    = TextEditingController();
   final _clientController   = TextEditingController();
   final _locationController = TextEditingController();
   final _notesController    = TextEditingController();
@@ -45,7 +44,6 @@ class _AddMeetingScreenState extends State<AddMeetingScreen>
     {'value': 30,   'label': '30 menit'},
     {'value': 60,   'label': '1 jam'},
     {'value': 120,  'label': '2 jam'},
-    {'value': 1440, 'label': '1 hari'},
   ];
 
   @override
@@ -104,7 +102,6 @@ class _AddMeetingScreenState extends State<AddMeetingScreen>
   @override
   void dispose() {
     _animController.dispose();
-    _titleController.dispose();
     _clientController.dispose();
     _locationController.dispose();
     _notesController.dispose();
@@ -395,6 +392,8 @@ class _AddMeetingScreenState extends State<AddMeetingScreen>
         ? widget.meeting!.brokerName
         : (_currentUserName.isEmpty ? '...' : _currentUserName);
 
+    String displayBrokerRole = _currentUserRole.isEmpty ? '' : _currentUserRole;
+
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
       appBar: AppBar(
@@ -454,7 +453,7 @@ class _AddMeetingScreenState extends State<AddMeetingScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Dibuat oleh (BC)',
+                            const Text('Dibuat oleh',
                                 style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w700,
@@ -476,7 +475,7 @@ class _AddMeetingScreenState extends State<AddMeetingScreen>
                           color: AppColors.secondary.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Text('BC',
+                        child: Text(displayBrokerRole,
                             style: TextStyle(
                                 color: AppColors.secondary,
                                 fontSize: 11,
