@@ -77,70 +77,79 @@ class _DashboardTabState extends State<_DashboardTab> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const SizedBox.shrink();
 
-    return Stack(
-      children: [
-        Positioned(
-          top: 0, left: 0, right: 0,
-          child: Container(
-            height: 240,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [AppColors.primary, Color(0xFF001F50)]),
-              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
-            ),
-          ),
-        ),
-        SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-                child: Row(
-                  children: [
-                    Container(width: 44, height: 44, decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.surface), child: const Icon(Icons.show_chart, color: AppColors.primary, size: 22)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(_getGreeting(), style: const TextStyle(fontSize: 12, color: AppColors.secondary, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-                          Text(user.email?.split('@').first.toUpperCase() ?? 'KARYAWAN', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.5), overflow: TextOverflow.ellipsis),
-                        ],
-                      ),
-                    ),
-                  ],
+    // 1. PINDAHKAN STREAM BUILDER USER KE PALING ATAS
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+      builder: (context, userSnapshot) {
+        if (userSnapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: AppColors.secondary));
+        }
+        
+        final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
+        
+        // Ekstrak Role
+        final bool isMC = userData != null && userData['role'] == 'MC';
+        
+        // Ekstrak Nama dari Firestore (fallback ke email jika kosong)
+        final String rawName = userData?['name'] ?? userData?['fullName'] ?? user.email?.split('@').first ?? 'KARYAWAN';
+        final String displayName = rawName.toUpperCase();
+
+        // Buat Stream dinamis berdasarkan Role
+        Stream<QuerySnapshot> meetingStream = isMC 
+            ? FirebaseFirestore.instance.collection('meetings').snapshots() 
+            : FirebaseFirestore.instance.collection('meetings').where('createdByUid', isEqualTo: user.uid).snapshots();
+
+        Stream<QuerySnapshot> clientStream = isMC 
+            ? FirebaseFirestore.instance.collection('clients').snapshots()
+            : FirebaseFirestore.instance.collection('clients').where('brokerUid', isEqualTo: user.uid).snapshots();
+
+        return Stack(
+          children: [
+            Positioned(
+              top: 0, left: 0, right: 0,
+              child: Container(
+                height: 240,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [AppColors.primary, Color(0xFF001F50)]),
+                  borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
                 ),
               ),
-              const SizedBox(height: 20),
-              
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24),
-                child: Text('Dashboard', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white)),
-              ),
-              const SizedBox(height: 20),
+            ),
+            SafeArea(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                    child: Row(
+                      children: [
+                        Container(width: 44, height: 44, decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.surface), child: const Icon(Icons.show_chart, color: AppColors.primary, size: 22)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(_getGreeting(), style: const TextStyle(fontSize: 12, color: AppColors.secondary, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+                              // MENGGUNAKAN NAMA DARI FIRESTORE DI SINI
+                              Text(displayName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.5), overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24),
+                    child: Text('Dashboard', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white)),
+                  ),
+                  const SizedBox(height: 20),
 
-              // 1. Cek Role User Terlebih Dahulu
-              Expanded(
-                child: StreamBuilder<DocumentSnapshot>(
-                  stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
-                  builder: (context, userSnapshot) {
-                    if (userSnapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: AppColors.secondary));
-                    
-                    final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
-                    final bool isMC = userData != null && userData['role'] == 'MC';
-
-                    // 2. Buat Stream dinamis berdasarkan Role
-                    Stream<QuerySnapshot> meetingStream = isMC 
-                        ? FirebaseFirestore.instance.collection('meetings').snapshots() // MC lihat semua
-                        : FirebaseFirestore.instance.collection('meetings').where('createdByUid', isEqualTo: user.uid).snapshots(); // BC lihat sendiri
-
-                    Stream<QuerySnapshot> clientStream = isMC 
-                        ? FirebaseFirestore.instance.collection('clients').snapshots()
-                        : FirebaseFirestore.instance.collection('clients').where('brokerUid', isEqualTo: user.uid).snapshots();
-
-                    // 3. Tampilkan Data
-                    return StreamBuilder<QuerySnapshot>(
+                  // Menampilkan Data Klien dan Meeting
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
                       stream: meetingStream,
                       builder: (context, meetingSnapshot) {
                         if (meetingSnapshot.hasError) return const Center(child: Text('Terjadi kesalahan', style: TextStyle(color: Colors.white)));
@@ -206,16 +215,18 @@ class _DashboardTabState extends State<_DashboardTab> {
                           },
                         );
                       },
-                    );
-                  }
-                ),
+                    )
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      }
     );
   }
+
+  // --- WIDGET DI BAWAHNYA TETAP SAMA ---
 
   Widget _buildUpcomingMeetingCard(List<QueryDocumentSnapshot> meetingDocs) {
     final now = DateTime.now();
@@ -226,7 +237,6 @@ class _DashboardTabState extends State<_DashboardTab> {
 
     if (upcoming.isEmpty) return const SizedBox.shrink();
 
-    // Urutkan untuk mencari jadwal yang paling dekat
     upcoming.sort((a, b) => (a['dateTime'] as Timestamp).compareTo(b['dateTime'] as Timestamp));
     final next = upcoming.first;
     final dateTime = (next['dateTime'] as Timestamp).toDate();
@@ -319,7 +329,6 @@ class _DashboardTabState extends State<_DashboardTab> {
       meetingDataMap[DateFormat('dd/MM').format(d)] = 0;
     }
 
-    // Mengisi grafik batang dengan data 'dateTime' dari koleksi meetings
     for (var doc in meetingDocs) {
       final data = doc.data() as Map<String, dynamic>;
       if (data['dateTime'] != null) {
@@ -479,7 +488,6 @@ class _DashboardTabState extends State<_DashboardTab> {
     return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(shape: BoxShape.circle, color: color)), const SizedBox(width: 8), Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.neutral)), const Spacer(), Text(count.toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.primary))]));
   }
 }
-
 // ==========================================
 // WIDGET TAB: PROFILE
 // ==========================================

@@ -417,7 +417,7 @@ class _MCActionSheetState extends State<_MCActionSheet> {
 
     final result = await showDialog<Map<String, String>>(
       context: context,
-      builder: (context) => StatefulBuilder(
+      builder: (dialogContext) => StatefulBuilder(
         builder: (context, setD) => AlertDialog(
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -444,20 +444,16 @@ class _MCActionSheetState extends State<_MCActionSheet> {
                     onChanged: (v) => setD(() => search = v.toLowerCase()),
                     decoration: const InputDecoration(
                       hintText: 'Cari nama broker...',
-                      hintStyle:
-                          TextStyle(color: AppColors.neutral, fontSize: 13),
-                      prefixIcon:
-                          Icon(Icons.search, color: AppColors.neutral, size: 18),
+                      hintStyle: TextStyle(color: AppColors.neutral, fontSize: 13),
+                      prefixIcon: Icon(Icons.search, color: AppColors.neutral, size: 18),
                       border: InputBorder.none,
-                      contentPadding:
-                          EdgeInsets.symmetric(vertical: 10),
+                      contentPadding: EdgeInsets.symmetric(vertical: 10),
                     ),
                   ),
                 ),
                 const SizedBox(height: 10),
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
-                    // Ambil semua user dengan role SBC atau MC
                     stream: FirebaseFirestore.instance
                         .collection('users')
                         .where('role', whereIn: ['SBC', 'MC'])
@@ -471,34 +467,29 @@ class _MCActionSheetState extends State<_MCActionSheet> {
                       final docs = snap.data!.docs.where((d) {
                         final data = d.data() as Map<String, dynamic>;
                         final uid  = d.id;
-                        // Jangan tampilkan broker asli
                         if (uid == widget.meeting.brokerUid) return false;
-                        final name = (data['name'] ??
-                                data['fullName'] ??
-                                '')
-                            .toString()
-                            .toLowerCase();
+                        
+                        // PASTIKAN DIUBAH MENJADI STRING AGAR TIDAK ERROR DYNAMIC
+                        final name = (data['name'] ?? data['fullName'] ?? '').toString().toLowerCase();
                         return search.isEmpty || name.contains(search);
                       }).toList();
 
                       if (docs.isEmpty) {
                         return const Center(
                             child: Text('Broker tidak ditemukan',
-                                style:
-                                    TextStyle(color: AppColors.neutral)));
+                                style: TextStyle(color: AppColors.neutral)));
                       }
 
                       return ListView.builder(
                         itemCount: docs.length,
                         itemBuilder: (context, i) {
-                          final data =
-                              docs[i].data() as Map<String, dynamic>;
+                          final data = docs[i].data() as Map<String, dynamic>;
                           final uid  = docs[i].id;
-                          final name = data['name'] ??
-                              data['fullName'] ??
-                              data['email'] ??
-                              '';
+                          
+                          // PASTIKAN DIUBAH MENJADI STRING
+                          final name = (data['name'] ?? data['fullName'] ?? data['email'] ?? '').toString();
                           final isSelected = uid == _coverBrokerUid;
+                          
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
                             leading: Container(
@@ -509,9 +500,7 @@ class _MCActionSheetState extends State<_MCActionSheet> {
                               ),
                               child: Center(
                                   child: Text(
-                                      name.isNotEmpty
-                                          ? name[0].toUpperCase()
-                                          : '?',
+                                      name.isNotEmpty ? name[0].toUpperCase() : '?',
                                       style: const TextStyle(
                                           color: AppColors.primary,
                                           fontWeight: FontWeight.w800))),
@@ -522,11 +511,12 @@ class _MCActionSheetState extends State<_MCActionSheet> {
                                     fontWeight: FontWeight.w700,
                                     fontSize: 14)),
                             trailing: isSelected
-                                ? const Icon(Icons.check_circle,
-                                    color: AppColors.tertiary)
+                                ? const Icon(Icons.check_circle, color: AppColors.tertiary)
                                 : null,
-                            onTap: () => Navigator.pop(
-                                context, {'uid': uid, 'name': name}),
+                            onTap: () {
+                              // BERI <String, String> SECARA EKSPLISIT
+                              Navigator.of(dialogContext).pop(<String, String>{'uid': uid, 'name': name});
+                            },
                           );
                         },
                       );
@@ -539,15 +529,16 @@ class _MCActionSheetState extends State<_MCActionSheet> {
           actions: [
             if (_coverBrokerUid.isNotEmpty)
               TextButton(
-                onPressed: () => Navigator.pop(
-                    context, {'uid': '', 'name': ''}),
+                // BERI <String, String> SECARA EKSPLISIT
+                onPressed: () => Navigator.of(dialogContext).pop(<String, String>{'uid': '', 'name': ''}),
                 child: const Text('Hapus Cover',
                     style: TextStyle(
                         color: Color(0xFFEF4444),
                         fontWeight: FontWeight.w600)),
               ),
             TextButton(
-              onPressed: () => Navigator.pop(context, null),
+              // BERI <String, String> SECARA EKSPLISIT
+              onPressed: () => Navigator.of(dialogContext).pop(<String, String>{'cancel': 'true'}),
               child: const Text('Batal',
                   style: TextStyle(
                       color: AppColors.neutral,
@@ -558,11 +549,55 @@ class _MCActionSheetState extends State<_MCActionSheet> {
       ),
     );
 
-    if (result != null) {
-      setState(() {
-        _coverBrokerUid  = result['uid']!;
-        _coverBrokerName = result['name']!;
+    // --- LOGIKA SETELAH DIALOG DITUTUP ---
+    if (result == null || result.containsKey('cancel')) {
+      return; 
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final newUid = result['uid']!;
+      final newName = result['name']!;
+
+      await FirebaseFirestore.instance
+          .collection('meetings')
+          .doc(widget.meeting.id)
+          .update({
+        'coverBrokerUid': newUid,
+        'coverBrokerName': newName,
       });
+
+      setState(() {
+        _coverBrokerUid = newUid;
+        _coverBrokerName = newName;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Row(children: [
+            const Icon(Icons.check_circle, color: AppColors.tertiary, size: 18),
+            const SizedBox(width: 8),
+            Text(newUid.isEmpty ? 'Cover broker dihapus' : 'Berhasil menunjuk: $newName',
+                style: const TextStyle(color: Colors.white)),
+          ]),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Gagal menyimpan: $e', style: const TextStyle(color: Colors.white)),
+          backgroundColor: const Color(0xFF8B1A1A),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

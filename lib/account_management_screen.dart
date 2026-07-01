@@ -185,6 +185,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
                     user: users[i],
                     onEdit: () => _showUserForm(context, user: users[i]),
                     onDelete: () => _confirmDelete(context, users[i]),
+                    currentUid: FirebaseAuth.instance.currentUser?.uid,
                   ),
                 );
               },
@@ -368,11 +369,13 @@ class _UserCard extends StatelessWidget {
   final UserModel user;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final String? currentUid;
 
   const _UserCard({
     required this.user,
     required this.onEdit,
     required this.onDelete,
+    required this.currentUid,
   });
 
   Color get _roleColor {
@@ -386,6 +389,7 @@ class _UserCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCurrentUser = user.uid == currentUid;
     final initials = user.name.trim().isNotEmpty
         ? user.name.trim().split(' ').take(2).map((w) => w[0].toUpperCase()).join()
         : '?';
@@ -481,8 +485,12 @@ class _UserCard extends StatelessWidget {
               children: [
                 _actionBtn(Icons.edit_outlined, AppColors.primary, onEdit),
                 const SizedBox(height: 8),
-                _actionBtn(Icons.delete_outline,
-                    const Color(0xFFEF4444), onDelete),
+                if (!isCurrentUser)
+      _actionBtn(
+        Icons.delete_outline,
+        const Color(0xFFEF4444),
+        onDelete,
+      ),
               ],
             ),
           ],
@@ -582,6 +590,10 @@ class _UserFormSheetState extends State<_UserFormSheet> {
 
     try {
       if (_isEditMode) {
+        if (!_isEditMode && _selectedRole == 'MC') {
+  _showError('Tidak boleh membuat akun MC!');
+  return;
+}
         // ── UPDATE: hanya update data Firestore, tidak mengubah password ──
         await FirebaseFirestore.instance
             .collection('users')
@@ -685,6 +697,22 @@ class _UserFormSheetState extends State<_UserFormSheet> {
       margin: const EdgeInsets.all(16),
     ));
   }
+
+  List<Map<String, dynamic>> get _filteredRoles {
+  // CREATE → tidak boleh ada MC
+  if (!_isEditMode) {
+    return _roleOptions.where((r) => r['value'] != 'MC').toList();
+  }
+
+  // EDIT:
+  if (widget.user!.role == 'MC') {
+    // Kalau edit MC → hanya MC saja
+    return _roleOptions.where((r) => r['value'] == 'MC').toList();
+  } else {
+    // Selain MC → tidak boleh lihat MC
+    return _roleOptions.where((r) => r['value'] != 'MC').toList();
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -808,40 +836,40 @@ class _UserFormSheetState extends State<_UserFormSheet> {
               ],
 
               // ── Info ubah password saat edit ──────────────────────────────
-              if (_isEditMode) ...[
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(11),
-                  decoration: BoxDecoration(
-                    color: AppColors.neutral.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: AppColors.neutral.withOpacity(0.2)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.info_outline,
-                          size: 15, color: AppColors.neutral),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Password tidak dapat diubah dari sini. Gunakan Firebase Console atau fitur reset password.',
-                          style: TextStyle(
-                              color: AppColors.neutral,
-                              fontSize: 11.5,
-                              height: 1.4),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              // if (_isEditMode) ...[
+              //   const SizedBox(height: 10),
+              //   Container(
+              //     padding: const EdgeInsets.all(11),
+              //     decoration: BoxDecoration(
+              //       color: AppColors.neutral.withOpacity(0.06),
+              //       borderRadius: BorderRadius.circular(10),
+              //       border: Border.all(
+              //           color: AppColors.neutral.withOpacity(0.2)),
+              //     ),
+              //     child: const Row(
+              //       children: [
+              //         Icon(Icons.info_outline,
+              //             size: 15, color: AppColors.neutral),
+              //         SizedBox(width: 8),
+              //         Expanded(
+              //           child: Text(
+              //             'Password tidak dapat diubah dari sini. Gunakan Firebase Console atau fitur reset password.',
+              //             style: TextStyle(
+              //                 color: AppColors.neutral,
+              //                 fontSize: 11.5,
+              //                 height: 1.4),
+              //           ),
+              //         ),
+              //       ],
+              //     ),
+              //   ),
+              // ],
               const SizedBox(height: 22),
 
               // ── Role Selector ─────────────────────────────────────────────
               _buildLabel('Role / Jabatan'),
               const SizedBox(height: 12),
-              ..._roleOptions.map((opt) {
+              ..._filteredRoles.map((opt) {
                 final isSelected = _selectedRole == opt['value'];
                 final color = opt['color'] as Color;
                 return GestureDetector(
