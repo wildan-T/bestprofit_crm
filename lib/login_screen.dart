@@ -51,6 +51,40 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     }
   }
 
+  Future<void> _resetPassword() async {
+    final email = _emailController.text.trim();
+    
+    // Validasi apakah kolom email sudah diisi sebelum menekan Lupa Password
+    if (email.isEmpty || !email.contains('@')) {
+      _showError('Silakan masukkan email Anda yang valid di kolom email terlebih dahulu.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      if (mounted) {
+        // Tampilkan notifikasi sukses berwarna hijau/warna sekunder
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Tautan reset password telah dikirim. Silakan cek kotak masuk atau folder spam email Anda.', style: TextStyle(color: Colors.white)),
+          backgroundColor: AppColors.secondary, // Menggunakan warna sekunder Anda
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        if (mounted) _showError('Akun dengan email tersebut tidak ditemukan.');
+      } else {
+        if (mounted) _showError('Gagal mengirim tautan: ${e.message}');
+      }
+    } catch (e) {
+      if (mounted) _showError('Terjadi Kesalahan: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message, style: const TextStyle(color: Colors.white)),
@@ -116,7 +150,26 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                         ),
                       ),
-                      const SizedBox(height: 36),
+                      Align(
+  alignment: Alignment.centerRight,
+  child: TextButton(
+    onPressed: _isLoading ? null : _resetPassword,
+    style: TextButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      minimumSize: Size.zero,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    ),
+    child: const Text(
+      'Lupa Password?',
+      style: TextStyle(
+        color: AppColors.primary, 
+        fontWeight: FontWeight.w700, 
+        fontSize: 12.5,
+      ),
+    ),
+  ),
+),
+                      const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity, height: 54,
                         child: ElevatedButton(

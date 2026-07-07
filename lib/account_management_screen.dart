@@ -585,81 +585,123 @@ class _UserFormSheetState extends State<_UserFormSheet> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
+  if (!_formKey.currentState!.validate()) return;
+  setState(() => _isLoading = true);
 
-    try {
-      if (_isEditMode) {
-        if (!_isEditMode && _selectedRole == 'MC') {
-  _showError('Tidak boleh membuat akun MC!');
+  try {
+    final emailInput = _emailCtrl.text.trim();
+
+    // =========================
+    // VALIDASI ROLE
+    // =========================
+
+    // ❌ Tidak boleh create MC
+    if (!_isEditMode && _selectedRole == 'MC') {
+      _showError('Tidak boleh membuat akun MC!');
+      return;
+    }
+
+    // ❌ Tidak boleh ubah role MC
+    if (_isEditMode &&
+        widget.user!.role == 'MC' &&
+        _selectedRole != 'MC') {
+      _showError('Role MC tidak boleh diubah!');
+      return;
+    }
+
+    // =========================
+    // EDIT MODE
+    // =========================
+    if (_isEditMode) {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.user!.uid)
+          .update({
+        'name': _nameCtrl.text.trim(),
+        'phone': _phoneCtrl.text.trim(),
+        'email': emailInput,
+        'role': _selectedRole,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        Navigator.pop(context);
+        _showSnack('Akun berhasil diperbarui!', AppColors.primary);
+      }
+    }
+
+    // =========================
+    // CREATE MODE
+    // =========================
+    else {
+      // ✅ CEK EMAIL DI FIRESTORE (ganti Auth method)
+      final existing = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: emailInput)
+          .limit(1)
+          .get();
+
+      if (existing.docs.isNotEmpty) {
+        Navigator.pop(context); // tutup form
+        final rootContext = Navigator.of(context, rootNavigator: true).context;
+
+  Future.delayed(const Duration(milliseconds: 200), () {
+    ScaffoldMessenger.of(rootContext).showSnackBar(
+      SnackBar(
+        content: Text('Email "$emailInput" sudah terdaftar.'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  });
+
   return;
-}
-        // ── UPDATE: hanya update data Firestore, tidak mengubah password ──
+      }
+
+      // Secondary app (biar tidak logout MC)
+      final secondaryApp = await Firebase.initializeApp(
+        name: 'secondary',
+        options: Firebase.app().options,
+      );
+
+      try {
+        final cred = await FirebaseAuth.instanceFor(app: secondaryApp)
+            .createUserWithEmailAndPassword(
+          email: emailInput,
+          password: _passwordCtrl.text.trim(),
+        );
+
+        final newUid = cred.user!.uid;
+
         await FirebaseFirestore.instance
             .collection('users')
-            .doc(widget.user!.uid)
-            .update({
-          'name':  _nameCtrl.text.trim(),
+            .doc(newUid)
+            .set({
+          'name': _nameCtrl.text.trim(),
           'phone': _phoneCtrl.text.trim(),
-          'email': _emailCtrl.text.trim(),
-          'role':  _selectedRole,
-          'updatedAt': FieldValue.serverTimestamp(),
+          'email': emailInput,
+          'role': _selectedRole,
+          'createdAt': FieldValue.serverTimestamp(),
         });
+
+        await FirebaseAuth.instanceFor(app: secondaryApp).signOut();
 
         if (mounted) {
           Navigator.pop(context);
-          _showSnack('Akun berhasil diperbarui!', AppColors.primary);
+          _showSnack('Akun berhasil dibuat!', AppColors.tertiary);
         }
-      } else {
-        // ── CREATE: daftarkan ke Firebase Auth, lalu simpan ke Firestore ──
-        // Menggunakan secondary FirebaseApp agar MC tidak ter-logout
-        final secondaryApp = await Firebase.initializeApp(
-          name:    'secondary',
-          options: Firebase.app().options,
-        );
-
-        try {
-          final cred = await FirebaseAuth.instanceFor(app: secondaryApp)
-              .createUserWithEmailAndPassword(
-            email:    _emailCtrl.text.trim(),
-            password: _passwordCtrl.text.trim(),
-          );
-
-          final newUid = cred.user!.uid;
-
-          // Simpan profil ke Firestore
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(newUid)
-              .set({
-            'name':      _nameCtrl.text.trim(),
-            'phone':     _phoneCtrl.text.trim(),
-            'email':     _emailCtrl.text.trim(),
-            'role':      _selectedRole,
-            'createdAt': FieldValue.serverTimestamp(),
-          });
-
-          // Logout secondary agar tidak interfere
-          await FirebaseAuth.instanceFor(app: secondaryApp).signOut();
-
-          if (mounted) {
-            Navigator.pop(context);
-            _showSnack('Akun berhasil dibuat!', AppColors.tertiary);
-          }
-        } finally {
-          // Selalu hapus secondary app setelah selesai
-          await secondaryApp.delete();
-        }
+      } finally {
+        await secondaryApp.delete();
       }
-    } on FirebaseAuthException catch (e) {
-      _showError(_authErrorMessage(e.code));
-    } catch (e) {
-      _showError('Terjadi kesalahan: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
+  } on FirebaseAuthException catch (e) {
+    _showError(_authErrorMessage(e.code));
+  } catch (e) {
+    _showError('Terjadi kesalahan: $e');
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
   }
-
+}
+  
   String _authErrorMessage(String code) {
     switch (code) {
       case 'email-already-in-use':
@@ -689,7 +731,8 @@ class _UserFormSheetState extends State<_UserFormSheet> {
 
   void _showError(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+     final rootContext = Navigator.of(context, rootNavigator: true).context;
+    ScaffoldMessenger.of(rootContext).showSnackBar(SnackBar(
       content: Text(msg, style: const TextStyle(color: Colors.white)),
       backgroundColor: const Color(0xFF8B1A1A),
       behavior: SnackBarBehavior.floating,
