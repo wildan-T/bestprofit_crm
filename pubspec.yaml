@@ -46,6 +46,7 @@ dependencies:
   fl_chart: ^0.66.0 # Untuk grafik penjualan
   timezone: ^0.11.0
   flutter_local_notifications: ^22.0.0
+  
   firebase_functions: ^0.0.1-dev
 
   image_picker: ^1.1.2   # untuk ambil foto dari kamera/galeri
@@ -61,6 +62,12 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/bpf-logo.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -74,8 +81,8 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
+  assets:
+    - assets/
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see
